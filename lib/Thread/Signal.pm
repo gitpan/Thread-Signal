@@ -3,7 +3,7 @@ package Thread::Signal;
 # Make sure we have version info for this module
 # Make sure we do everything by the book from now on
 
-our $VERSION : unique = '1.01';
+our $VERSION = '1.02';
 use strict;
 
 # Make sure we only load stuff when we actually need it
@@ -22,11 +22,46 @@ use threads::shared ();
 
 # Initialize the tid -> pid hash
 # Initialize the tid -> allowed signals hash
-# Thread local default list of allowed signals
+# Initialize hash with automatically registered signals
 
 our %pid : shared;    # must all be our because of AutoLoader usage
 our %signal : shared;
-our $default_signal;
+our %automatic;
+
+# Initialize thread local parent thread id
+# Initialize thread local thread id
+# Save the pid of the current base thread
+# Save "original" thread creation routine reference
+
+our $ptid;
+our $tid = threads->tid;
+$pid{$tid} = _threadpid();
+my $new = \&threads::new;
+
+# Allow for dirty tricks
+# Hijack the thread creation routine with a sub that
+#  Saves the class
+#  Save the original reference of sub to execute
+#  Creates a new thread with a sub that
+#   Set the parent thread id
+#   Save the current thread id (for easier access and setting parent later)
+#   Sets the pid for the current thread
+#   Mark the automatic signals as allowed for this thread
+#   And starts execute the original sub with the right parameters
+
+{no strict 'refs';
+ *threads::new = sub {
+     my $class = shift;
+     my $sub = shift;
+     $new->( $class,sub {
+         $ptid = $tid;
+         $tid = threads->tid;
+         $pid{$tid} = _threadpid();
+         $signal{$tid} = join( ' ','',keys %automatic,'' );
+         goto &$sub;
+     },@_ );
+ };
+} #no strict 'refs'
 
 # Satisfy -require-
 
@@ -39,42 +74,53 @@ our $default_signal;
 __END__
 
 #---------------------------------------------------------------------------
+
+# class methods
+
+#---------------------------------------------------------------------------
 #  IN: 1 class (ignored)
-#      2..N hash with signal/code ref pairs
+#      2..N hash with signal/code ref pairs (default: parent threads)
 
 sub register {
 
 # Lose the class
-# Set the parameter hash
-# Obtain the default namespace
-# Obtain the current thread id
-# Create local copy of allowed signals hash, use default if first time
+# Create hash with allowed signals here
 
     shift;
-    my %param = @_;
-    my $namespace = caller().'::';
-    my $tid = threads->tid;
     my $allowed = _allowed();
+    
+# If we're to register specific signals
+#  Set the parameter hash
+#  Obtain the default namespace
+#  For each signal/code pair
 
-# For each signal/code pair
-#  If we don't have a code reference yet
-#   Prefix default namespace if none specified yet
-#   Make it a true code ref
-#  Set the signal
-#  Mark it in the allowed hash also
+    if (@_) {
+        my %param = @_;
+        my $namespace = caller().'::';
+        while (my($signal,$code) = each( %param )) {
 
-    while (my($signal,$code) = each( %param )) {
-        unless (ref($code)) {
-            $code = $namespace.$code unless $code =~ m#::#;
-            $code = \&$code;
+#   If we don't have a code reference yet
+#    Prefix default namespace if none specified yet
+#    Make it a true code ref
+#   Set the signal
+#   Mark it in the allowed hash also
+#  Remember these settings for this thread
+
+            unless (ref($code)) {
+                $code = $namespace.$code unless $code =~ m#::#;
+                $code = \&$code;
+            }
+            $SIG{$signal} = $code;
+            $allowed->{$signal} = undef;
         }
-        $SIG{$signal} = $code;
-        $allowed->{$signal} = undef;
+	_record( $allowed );
+
+# Else (just activating the signals of the parent thread)
+#  Make sure the default signals are known
+
+    } else {
+        $signal{$tid} = $signal{$ptid};
     }
-
-# Remember these settings
-
-    _record( $allowed );
 } #register
 
 #---------------------------------------------------------------------------
@@ -87,7 +133,8 @@ sub unregister {
 # Set to all signals allowed if none specified
 
     shift;
-    @_ = keys %{_allowed()} unless @_;
+    my $allowed = _allowed();
+    @_ = keys %$allowed unless @_;
 
 # For each of the signal names
 #  Set the signal back to the default value
@@ -100,6 +147,45 @@ sub unregister {
     }
     _record( $allowed );
 } #unregister
+
+#---------------------------------------------------------------------------
+#  IN: 1 class (ignored)
+#      2..N signals that should be registered automatically
+# OUT: 1..N current signals that should be registered automatically
+
+sub automatic {
+
+# Obtain the class
+# Set all new automatically registered signals specified
+# Return the current set
+
+    my $class = shift;
+    $automatic{$_} = undef foreach @_;
+    keys %automatic;
+} #automatic
+
+#---------------------------------------------------------------------------
+#  IN: 1 class (ignored)
+#      2..N signals that should be _not_ auto-registered (default: all)
+# OUT: 1..N current signals that will be registered automatically
+
+sub unautomatic {
+
+# Obtain the class
+# If specific signal names specified
+#  Remove specified automatically registered signals
+# Else (want to remove all)
+#  Just reset the hash
+# Return the current set
+
+    my $class = shift;
+    if (@_) {
+        delete( $automatic{$_} ) foreach @_;
+    } else {
+        %automatic = ();
+    }
+    keys %automatic;
+} #unautomatic
 
 #---------------------------------------------------------------------------
 #  IN: 1 class (ignored)
@@ -116,7 +202,7 @@ sub registered {
 # Return true indicating all specified keys were in hash
 
     shift;
-    my $allowed = _allowed( (@_ > 1 ? shift : '') || threads->tid );
+    my $allowed = _allowed( (@_ > 1 ? shift : '') || $tid );
     foreach (@_) {
         return 0 unless exists $allowed->{$_};
     }
@@ -139,16 +225,25 @@ sub signal {
     my $signal = shift;
     die "Must specify a signal" unless $signal;
 
-# Set to signal all if so indicated
-# Create the not allowed list
-# Die now if attempting to signal threads that are not allowed
-# Send the signal to the indicated threads and return the result
+# If we're to signal all threads that allow this signal
+#  Find out which threads that are and send the signal to them, return result
 
-    @_ = keys %pid if @_ == 1 and $_[0] == -1;
-    my @notallowed = map {index( $signal{$_}," $signal " ) == -1 ? $_ : ()} @_;
-    die "Not allowed to send signal '$signal' to thread(s) @notallowed"
-     if @notallowed;
-    kill $signal,map {$pid{$_}} @_;
+    if (@_ == 1 and $_[0] == -1) {
+        kill $signal,
+         map {index( $signal{$_}," $signal " ) != -1 ? $pid{$_} : ()} keys %pid;
+
+# Else (only specific threads)
+#  Create the not allowed list
+#  Die now if attempting to signal threads that are not allowed
+#  Send the signal to the indicated threads and return the result
+
+    } else {
+        my @notallowed = sort {$a <=> $b}
+         map {index( $signal{$_}," $signal " ) == -1 ? $_ : ()} @_;
+        die "Not allowed to send signal '$signal' to thread(s) @notallowed"
+         if @notallowed;
+        kill $signal,map {$pid{$_}} @_;
+    }
 } #signal
 
 #---------------------------------------------------------------------------
@@ -181,41 +276,20 @@ sub import { goto &register } #import
 #---------------------------------------------------------------------------
 #  IN: 1 reference to hash with allowed keys
 
-sub _record {
-
-# Obtain the thread id
-# Obtain the allowed signals hash
-# Set the default allowed signals
-# Add extra spaces for use in the allowed signals hash
-# Set the pid of the thread
-
-    my $tid = threads->tid;
-    my $allowed = shift;
-    $default_signal = join( ' ',keys %$allowed );
-    $signal{$tid} = " $default_signal ";
-    $pid{$tid} = _threadpid();
-} #_record
+sub _record { $signal{$tid} = join( ' ','',keys %{shift()},'' ) } #_record
 
 #---------------------------------------------------------------------------
-#  IN: 1 thread id (default: current, check default also)
+#  IN: 1 thread id (default: current)
 # OUT: 1 reference to allowed hash
 
 sub _allowed {
 
-# Return reference to specific hash if specific hash requested
-# Obtain the thread id
-# Return reference to the hash
+# Create hash of what we have saved in the shared signal hash
+# Return a reference to it
 
-    return _hashref( $signal{shift()} ) if @_;
-    my $tid = threads->tid;
-    _hashref( exists($signal{$tid}) ? $signal{$tid} : $default_signal );
+    my %hash = map {($_,undef)} split( ' ',$signal{shift() || $tid} );
+    \%h;
 } #_allowed
-
-#---------------------------------------------------------------------------
-#  IN: 1 space delimited signals string
-# OUT: 1 reference to hash with signals as keys
-
-sub _hashref { my %h = map {($_,undef)} (split( ' ',shift() )); \%h } #_hashref
 
 #---------------------------------------------------------------------------
 
@@ -234,10 +308,15 @@ Thread::Signal - deliver a signal to a thread
   Thread::Signal->unregister; # dis-allow all signalling from other threads
   Thread::Signal->unregister( qw(ALRM) ); # only dis-allow specific signals
 
+  Thread::Signal->automatic( 'USR1' );   # auto-register in new threads
+  Thread::Signal->unautomatic;           # don't auto-register any
+  Thread::Signal->unautomatic( 'USR1' ); # don't auto-register specific
+
   Thread::Signal->signal( 'ALRM',$thread->tid ); # signal a single thread
   Thread::Signal->signal( 'ALRM',-1 ); # signal all threads that allow this
 
-  print "Signal is registered\n" if Thread::Signal->registered( ,'ALRM' );
+  $registered = Thread::Signal->registered( 'ALRM' ); # check own thread
+  $registered = Thread::Signal->registered( $tid,qw(ALRM USR2) ); # other thread
 
   Thread::Signal->prime( qw(ALRM USR1 USR2) ); # needed in special cases
 
@@ -258,8 +337,9 @@ Unfortunately, this B<only> works under B<Linux> so far.
 Signals are specified by their name (see B<%SIG> in L<perlvar>) and a
 subroutine specification (either a name or a reference).
 
-Threads do not inherit signals from their parents, but can be easily persuaded
-to do so.
+Threads do not inherit signals from their parents by default, but can be
+easily persuaded to do so either automatically or on a thread-by-thread
+basis.
 
 Threads can activate and de-activate the signals that they want to be
 deliverable to them.  Any thread can check any other thread's deliverable
@@ -309,6 +389,39 @@ be unregistered.
 
 Call L<register> with specific signal names again at a later time to allow
 those signals to be delivered from other threads again.
+
+=head2 automatic
+
+ Thread::Signal->automatic( qw(ALRM USR1) );
+
+ @automatic = Thread::Signal->automatic;
+
+The "automatic" class method sets and returns the B<names> of the signals that
+will be automatically L<register>ed when a new thread is started.  Please note
+that signals B<must> have been L<register>ed at least once by any of the parent
+threads for the signals to actually be active inside the new threads.
+
+Call method L<unautomatic> to remove signals from being automatically
+registered in newly created threads.
+
+=head2 unautomatic
+
+ Thread::Signal->unautomatic; # no signal will be registered automatically
+
+ Thread::Signal->unautomatic( qw(ALRM USR1) );
+
+ @automatic = Thread::Signal->unautomatic;
+
+The "unautomatic" class method removes the B<names> of the signals that
+will be automatically L<register>ed when a new thread is started.  Calling
+this method for a signal only makes sense if method L<automatic> was called
+earlier for the same signal.  All signals that will be automatically
+registered, will be removed if this method is called without parameters.
+
+All signals that are automatically registered are returned.
+
+Call method L<automatic> to add signal names for automatic registration
+again.
 
 =head2 registered
 
@@ -360,7 +473,7 @@ threads, you basically have two options.
 =item use Thread::Signal->prime
 
 By calling Thread::Signal->prime with the signal names that you want to be
-deliverable in chile threads.
+deliverable in child threads.
 
 =item register, then unregister
 
@@ -380,8 +493,10 @@ interpreter with a lot of subroutines pre-loaded.
 
 =head1 CAVEATS
 
-Due to a bug in the implementation of B<CLONE> in Perl 5.8.0, it is impossible
-to make the registration process automatic.  Which may be a bonus.
+This module only runs on systems that use a (pseudo) process for each thread.
+To my knowledge, this happens only on Linux systems.  I'd be interested in
+knowing about other OS's on which this implementation also works, so that I
+can add these to the documentation.
 
 Because of a bug with signalling in Perl 5.8.0, an entry in the %SIG hash
 B<must> have been assigned in a thread before it can be used in any of the

@@ -6,4 +6,5 @@ VERSION
 Makefile.PL
 lib/Thread/Signal.pm
 Signal.xs
-t/Signal.t
+t/Signal01.t
+t/Signal02.t

@@ -1,3 +1,14 @@
+1.02	4 September 2002
+	Found the trick for automatically registering signals.  Completely
+	reworked the inside to allow automatic registration.  Added methods
+	"automatic" and "unautomatic" and added some more tests.
+
+	3 September 2002
+	Removed : unique attribute from VERSION: this doesn't work with
+	AutoLoader apparently (still need to verify that, though)
+
+	Fixed some documentation nits.
+
 1.01	2 September 2002
 	First version of Thread::Signal.  Starts with version 1.01 to prevent
 	problems with old 5.005 threads Thread::Signal on CPAN.
