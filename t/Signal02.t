@@ -7,6 +7,7 @@ BEGIN {				# Magic Perl CORE pragma
 
 use Test::More tests => 5;
 use strict;
+use warnings;
 
 BEGIN {use_ok( 'Thread::Signal' )}
 Thread::Signal->register( 'USR1',\&signal );
@@ -25,10 +26,22 @@ my $signalled = Thread::Signal->signal( 'USR1',0..$threads );
 cmp_ok( $signalled,'==',$threads+1,	'check whether all signalled' );
 
 threads->yield until $done == $threads+1;
-is( join(' ',@result),join(' ',0..$threads),'check all threads processed' );
+my $worked =
+ is( join(' ',@result),join(' ',0..$threads),'check all threads processed' );
 
 $running = 0;
 $_->join foreach threads->list;
+
+warn <<EOD unless $worked;
+
+*********************************************************************
+*** It looks like signalling threads does NOT work on your system ***
+*** 
+*** This is caused by peculiarities of the operating system that  ***
+***   you are using, and can unfortunately, not be fixed (yet)    ***
+*********************************************************************
+
+EOD
 
 sub thread {
  {lock( $running ); $running++};

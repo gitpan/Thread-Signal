@@ -3,7 +3,7 @@ package Thread::Signal;
 # Make sure we have version info for this module
 # Make sure we do everything by the book from now on
 
-$VERSION = '1.06';
+$VERSION = '1.07';
 use strict;
 
 # Make sure we only load stuff when we actually need it
@@ -618,6 +618,16 @@ least seems to be more reliable and also seems to deliver signals which would
 ordinarily be blocked if the signal would be activated by just setting %SIG.
 Future versions of Perl will probably fix the setting of signals with %SIG.
 
+=head1 SYSTEMS IT DOESN'T WORK ON
+
+=over 2
+
+=item Mac OS X
+
+From personal experience  ;-(
+
+=back
+
 =head1 AUTHOR
 
 Elizabeth Mattijsen, <liz@dijkmat.nl>.
@@ -626,7 +636,7 @@ Please report bugs to <perlbugs@dijkmat.nl>.
 
 =head1 COPYRIGHT
 
-Copyright (c) 2002 Elizabeth Mattijsen <liz@dijkmat.nl>. All rights
+Copyright (c) 2002-2003 Elizabeth Mattijsen <liz@dijkmat.nl>. All rights
 reserved.  This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
 

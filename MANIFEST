@@ -8,3 +8,4 @@ lib/Thread/Signal.pm
 Signal.xs
 t/Signal01.t
 t/Signal02.t
+META.yml                                Module meta-data (added by MakeMaker)

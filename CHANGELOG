@@ -1,3 +1,14 @@
+1.07	12 August 2003
+	Adapted test-suite to better check and notify user when Thread::Signal
+	will not work on the platform.  Cleaned up Makefile.PL and adapted
+	copyright notice.
+
+	Added "SYSTEMS IT DOESN'T WORK ON" section to the pod.
+
+	Still wasn't able to silence strange warnings in the test-suite ;-(.
+	Added message that this shouldn't happen in real world situations,
+	or else!  ;-)  
+
 1.06    30 September 2002
         Use "load.pm" instead of AutoLoader.  Added dependency on load.pm
 	in Makefile.PL.
