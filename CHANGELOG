@@ -1,4 +1,7 @@
-1.10	3 October 2003
+1.11	28 December 2003
+	Added automatic required modules update using Devel::Required.
+
+1.10	3 November 2003
 	Apparently newer Linux systems don't have pid's for threads anymore
 	either.  Added compile time check for this behaviour: nown fails to
 	compile if it doesn't work.  Adapted test-suite accordingly.

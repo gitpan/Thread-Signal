@@ -18,7 +18,7 @@ use threads::shared ();
 #  Die now if it won't work on this system
 
 BEGIN {
-    $Thread::Signal::VERSION = '1.10';
+    $Thread::Signal::VERSION = '1.11';
     require XSLoader;
     XSLoader::load( 'Thread::Signal',$Thread::Signal::VERSION );
     die "Thread::Signal can not operate on this OS (yet)\n"
@@ -605,6 +605,10 @@ You can also first L<register> all of the signals with the appropriate handling
 routines, start the child threads in which you want the signals to be
 deliverable, and then call L<unregister> without parameters to have the signals
 unregistered for the current thread.
+
+=head1 REQUIRED MODULES
+
+ load (any)
 
 =head1 OPTIMIZATIONS
 
