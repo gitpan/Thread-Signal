@@ -1,3 +1,12 @@
+1.05	17 September 2002
+	Found that there is a better way to set signals on p5p (thanks Tels!),
+	using POSIX's sigaction().  Instead of just setting %SIG, we now use
+	sigaction().  Added internal methods _set and _ignore to aid in this.
+	This should allow signals to come through in threads::shared::cond_wait
+	and system calls such as "gethostbyaddr".
+
+	Fixed some documentation nits.
+
 1.04	9 September 2002
 	Added some internal stuff so that Thread::Status can do its job more
 	easily.

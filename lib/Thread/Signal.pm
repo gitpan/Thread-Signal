@@ -3,7 +3,7 @@ package Thread::Signal;
 # Make sure we have version info for this module
 # Make sure we do everything by the book from now on
 
-our $VERSION = '1.04';
+our $VERSION = '1.05';
 use strict;
 
 # Make sure we only load stuff when we actually need it
@@ -15,7 +15,7 @@ use AutoLoader 'AUTOLOAD';
 require XSLoader;
 XSLoader::load( 'Thread::Signal',$VERSION );
 
-# Make sure we can do threads
+# Make sure we can do threads and share variables
 
 use threads ();
 use threads::shared ();
@@ -135,10 +135,10 @@ sub register {
                 $code = $namespace.$code unless $code =~ m#::#;
                 $code = \&$code;
             }
-            $SIG{$signal} = $code;
+            _set( $signal,$code );
             $allowed->{$signal} = undef;
         }
-	_record( $allowed );
+        _record( $allowed );
 
 # Else (just activating the signals of the parent thread)
 #  Make sure the default signals are known
@@ -167,7 +167,7 @@ sub unregister {
 # Remember these settings
 
     foreach (@_) {
-        $SIG{$_} = 'DEFAULT';
+        _set( $_,\&_ignore );
         delete( $allowed->{$_} );
     }
     _record( $allowed );
@@ -308,7 +308,7 @@ sub prime {
 # Set a default signal handler for all the signals specified
 
     shift;
-    $SIG{$_} = sub {} foreach @_;
+    $SIG{$_} = \&_ignore foreach @_;
 } #prime
 
 #---------------------------------------------------------------------------
@@ -348,6 +348,23 @@ sub _allowed {
 # OUT: 1..N process ID's
 
 sub _tids2pids { map {$pid{$_} ? $pid{$_} : ()} @_ } #_tids2pids
+
+#---------------------------------------------------------------------------
+#  IN: 1 signal to set
+#      2 subroutine ref to set
+
+sub _set {
+
+# Load POSIX if not loaded yet (unfortunately needed)
+# Set the signal the difficult (but more reliable) way
+
+    require POSIX; # good thing that POSIX uses AutoLoader also
+    POSIX::sigaction( "POSIX::SIG$_[0]"->(), POSIX::SigAction->new( $_[1] ) );
+} #_set
+
+#---------------------------------------------------------------------------
+
+sub _ignore {} #_ignore
 
 #---------------------------------------------------------------------------
 
@@ -557,7 +574,7 @@ threads, you basically have two options.
 
 =over 2
 
-=item use Thread::Signal->prime
+=item call Thread::Signal->prime
 
 By calling Thread::Signal->prime with the signal names that you want to be
 deliverable in child threads.
@@ -589,6 +606,15 @@ Because of a bug with signalling in Perl 5.8.0, an entry in the %SIG hash
 B<must> have been assigned in a thread before it can be used in any of the
 threads started from that thread.  The L<prime> class method gives you an easy
 way to do that.
+
+It is still not clear whether signals are honoured in time at all instances.
+Specifically, just setting %SIG will cause signals not to be honoured until
+other timeouts (such as with gethostbyaddr()) or other signals (such as with
+threads::shared::cond_wait()) have been honoured.  Therefore, this module has
+switched to using POSIX::sigaction() (instead of just setting %SIG), which at
+least seems to be more reliable and also seems to deliver signals which would
+ordinarily be blocked if the signal would be activated by just setting %SIG.
+Future versions of Perl will probably fix the setting of signals with %SIG.
 
 =head1 AUTHOR
 
