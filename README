@@ -1,0 +1,22 @@
+README for Thread::Signal
+
+Deliver a signal to one or more threads, specified by thread id.
+
+                         *** A note of CAUTION ***
+
+This module only functions on Perl versions 5.8.0 and later.  And then
+only when threads are enabled with -Dusethreads.  It is of no use with
+any version of Perl before 5.8.0 or without threads enabled.
+
+                         *************************
+
+Copyright (c) 2002 Elizabeth Mattijsen <liz@dijkmat.nl>. All rights
+reserved.  This program is free software; you can redistribute it and/or
+modify it under the same terms as Perl itself.
+
+The build is standard:
+
+perl Makefile.PL
+make
+make test
+make install
