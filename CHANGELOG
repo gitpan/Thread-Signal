@@ -1,3 +1,10 @@
+1.04	9 September 2002
+	Added some internal stuff so that Thread::Status can do its job more
+	easily.
+
+	6 September 2002
+	Fixed problem with redefine warnings when running with -w.
+
 1.03	6 September 2002
 	Added special meaning "-2" to signify all threads that have signal
 	activated _except_ the current thread.

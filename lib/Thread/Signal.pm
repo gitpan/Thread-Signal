@@ -3,7 +3,7 @@ package Thread::Signal;
 # Make sure we have version info for this module
 # Make sure we do everything by the book from now on
 
-our $VERSION = '1.03';
+our $VERSION = '1.04';
 use strict;
 
 # Make sure we only load stuff when we actually need it
@@ -21,10 +21,12 @@ use threads ();
 use threads::shared ();
 
 # Initialize the tid -> pid hash
+# Initialize the tid -> thread caller info hash
 # Initialize the tid -> allowed signals hash
 # Initialize hash with automatically registered signals
 
 our %pid : shared;    # must all be our because of AutoLoader usage
+our %caller : shared;
 our %signal : shared;
 our %automatic;
 
@@ -42,26 +44,49 @@ my $new = \&threads::new;
 # Hijack the thread creation routine with a sub that
 #  Saves the class
 #  Save the original reference of sub to execute
+
+{no warnings 'redefine';
+ *threads::new = sub {
+     my $class = shift;
+     my $sub = shift;
+
+#  Initialize caller array
+#  Initialize level to obtain caller info from
+#  While there is info to be obtained
+#   Reloop if it something of us internally
+#   Make hijacked thread start something sensible
+#   Save whatever we got
+#  Put it al together in a single scalar
+#  Prefix this threads calling history if there is one
+
+     my @caller = (); # must explicitily be reset, otherwise oozing in 5.8.0
+     my $level = 0;
+     while (my @level = caller($level++)) {
+         next if $level[0] =~ m#^Thread::S(?:ignal|tatus)#;
+         $level[3] = 'threads::new' if $level[3] eq 'Thread::Signal::__ANON__';
+         push( @caller,join( '|',$tid,@level ) );
+     }
+     my $caller = join( "\n",@caller );
+     $caller .= "\n$caller{$tid}" if $caller and $caller{$tid};
+
 #  Creates a new thread with a sub that
 #   Set the parent thread id
 #   Save the current thread id (for easier access and setting parent later)
+#   Sets the caller info for the current thread
 #   Sets the pid for the current thread
 #   Mark the automatic signals as allowed for this thread
 #   And starts execute the original sub with the right parameters
 
-{no strict 'refs';
- *threads::new = sub {
-     my $class = shift;
-     my $sub = shift;
      $new->( $class,sub {
          $ptid = $tid;
          $tid = threads->tid;
+         $caller{$tid} = $caller;
          $pid{$tid} = _threadpid();
          $signal{$tid} = join( ' ','',keys %automatic,'' );
          goto &$sub;
      },@_ );
  };
-} #no strict 'refs'
+} #no warnings 'redefine'
 
 # Satisfy -require-
 
