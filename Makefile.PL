@@ -9,5 +9,6 @@ WriteMakefile (
   ABSTRACT	=> 'deliver a signal to a thread') : (),
  VERSION_FROM	=> 'lib/Thread/Signal.pm',
  PREREQ_PM	=> {
+		    load => 0,
                    },
 );

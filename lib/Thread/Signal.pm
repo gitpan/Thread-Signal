@@ -3,17 +3,17 @@ package Thread::Signal;
 # Make sure we have version info for this module
 # Make sure we do everything by the book from now on
 
-our $VERSION = '1.05';
+$VERSION = '1.06';
 use strict;
 
 # Make sure we only load stuff when we actually need it
 
-use AutoLoader 'AUTOLOAD';
+use load;
 
 # Load the XS stuff
 
 require XSLoader;
-XSLoader::load( 'Thread::Signal',$VERSION );
+XSLoader::load( 'Thread::Signal',$Thread::Signal::VERSION );
 
 # Make sure we can do threads and share variables
 
@@ -94,7 +94,7 @@ my $new = \&threads::new;
 
 #---------------------------------------------------------------------------
 
-# AutoLoader takes over from here
+# The following subroutines are loaded on demand only
 
 __END__
 
@@ -367,6 +367,8 @@ sub _set {
 sub _ignore {} #_ignore
 
 #---------------------------------------------------------------------------
+
+__END__
 
 =head1 NAME
 

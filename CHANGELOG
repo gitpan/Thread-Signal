@@ -1,3 +1,10 @@
+1.06    30 September 2002
+        Use "load.pm" instead of AutoLoader.  Added dependency on load.pm
+	in Makefile.PL.
+
+	Removed "our" from $VERSION, should shave off some bytes in
+	memory usage, as found from testing with Benchmark::Thread::Size.
+
 1.05	17 September 2002
 	Found that there is a better way to set signals on p5p (thanks Tels!),
 	using POSIX's sigaction().  Instead of just setting %SIG, we now use
