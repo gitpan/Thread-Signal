@@ -1,3 +1,19 @@
+1.09	23 August 2003
+	Version 1.08 somewhore fell into a black hole because of the problems
+	that PAUSE had the past days.  Upping the version number seemed to be
+	the only way to fix this.
+
+1.08	21 August 2003
+	Fixed problem with undefined string in split whenever used from
+	another module at compile time.  This particularly occurred when
+	doing a perl -wc on a script.  Also fixed a type on _allowed: now
+	how did that ever get by use strict?
+
+	Fixed some internal documentation.
+
+	Removed references to "AutoLoader" from the documentation: the
+	infamous "load" module is now used.
+
 1.07	12 August 2003
 	Adapted test-suite to better check and notify user when Thread::Signal
 	will not work on the platform.  Cleaned up Makefile.PL and adapted

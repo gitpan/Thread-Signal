@@ -36,7 +36,7 @@ warn <<EOD unless $worked;
 
 *********************************************************************
 *** It looks like signalling threads does NOT work on your system ***
-*** 
+***                                                               ***
 *** This is caused by peculiarities of the operating system that  ***
 ***   you are using, and can unfortunately, not be fixed (yet)    ***
 *********************************************************************

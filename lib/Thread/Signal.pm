@@ -3,7 +3,7 @@ package Thread::Signal;
 # Make sure we have version info for this module
 # Make sure we do everything by the book from now on
 
-$VERSION = '1.07';
+$VERSION = '1.09';
 use strict;
 
 # Make sure we only load stuff when we actually need it
@@ -25,26 +25,28 @@ use threads::shared ();
 # Initialize the tid -> allowed signals hash
 # Initialize hash with automatically registered signals
 
-our %pid : shared;    # must all be our because of AutoLoader usage
+our %pid : shared;    # must all be our because of load usage
 our %caller : shared;
 our %signal : shared;
 our %automatic;
 
 # Initialize thread local parent thread id
 # Initialize thread local thread id
-# Save the pid of the current base thread
-# Save "original" thread creation routine reference
+# Save the pid of the current base thread (at compile time!)
+# And remember the associated process ID
 
 our $ptid;
-our $tid = threads->tid;
+our $tid;
+BEGIN { $tid = threads->tid } #BEGIN
 $pid{$tid} = _threadpid();
-my $new = \&threads::new;
 
+# Save "original" thread creation routine reference
 # Allow for dirty tricks
 # Hijack the thread creation routine with a sub that
 #  Saves the class
 #  Save the original reference of sub to execute
 
+my $new = \&threads::new;
 {no warnings 'redefine';
  *threads::new = sub {
      my $class = shift;
@@ -319,7 +321,12 @@ sub prime {
 #  IN: 1 class (ignored)
 #      2..N hash with signal/code ref pairs
 
-sub import { goto &register } #import
+sub import {
+
+# Do whatever the registration routine is doing
+
+    goto &register; # cannot import because "register" is autoloaded
+} #import
 
 #---------------------------------------------------------------------------
 
@@ -339,8 +346,8 @@ sub _allowed {
 # Create hash of what we have saved in the shared signal hash
 # Return a reference to it
 
-    my %hash = map {($_,undef)} split( ' ',$signal{shift() || $tid} );
-    \%h;
+    my %hash = map {($_,undef)} split( ' ',$signal{shift() || $tid} || '' );
+    \%hash;
 } #_allowed
 
 #---------------------------------------------------------------------------
@@ -358,7 +365,7 @@ sub _set {
 # Load POSIX if not loaded yet (unfortunately needed)
 # Set the signal the difficult (but more reliable) way
 
-    require POSIX; # good thing that POSIX uses AutoLoader also
+    require POSIX;
     POSIX::sigaction( "POSIX::SIG$_[0]"->(), POSIX::SigAction->new( $_[1] ) );
 } #_set
 
@@ -590,7 +597,7 @@ unregistered for the current thread.
 
 =head1 OPTIMIZATIONS
 
-This module uses L<AutoLoader> to reduce memory and CPU usage. This causes
+This module uses L<load> to reduce memory and CPU usage. This causes
 subroutines only to be compiled in a thread when they are actually needed at
 the expense of more CPU when they need to be compiled.  Simple benchmarks
 however revealed that the overhead of the compiling single routines is not
@@ -642,6 +649,6 @@ modify it under the same terms as Perl itself.
 
 =head1 SEE ALSO
 
-L<AutoLoader>.
+L<load>.
 
 =cut
