@@ -1,24 +1,29 @@
 package Thread::Signal;
 
-# Make sure we have version info for this module
 # Make sure we do everything by the book from now on
-
-$VERSION = '1.09';
-use strict;
-
 # Make sure we only load stuff when we actually need it
 
+use strict;
 use load;
-
-# Load the XS stuff
-
-require XSLoader;
-XSLoader::load( 'Thread::Signal',$Thread::Signal::VERSION );
 
 # Make sure we can do threads and share variables
 
 use threads ();
 use threads::shared ();
+
+# At compile time
+#  Make sure we have version info for this module
+#  Load the XS stuff
+#  Activate the XS stuff
+#  Die now if it won't work on this system
+
+BEGIN {
+    $Thread::Signal::VERSION = '1.10';
+    require XSLoader;
+    XSLoader::load( 'Thread::Signal',$Thread::Signal::VERSION );
+    die "Thread::Signal can not operate on this OS (yet)\n"
+     if threads->new( sub { $_[0] == _threadpid() },$$ )->join;
+} #BEGIN
 
 # Initialize the tid -> pid hash
 # Initialize the tid -> thread caller info hash
@@ -416,6 +421,12 @@ Thread::Signal - deliver a signal to a thread
  is of no use with any version of Perl before 5.8.0 or without
  threads enabled.
 
+ Furthermore, the correct functioning of this module currently
+ depends on whether threads have signallable process ID's.
+ Older Linuxes have this behaviour, newer Linuxes do not seem
+ to support this anymore.  If the feature does not work on your
+ OS, then it will fail your program at compile time.
+
                   *************************
 
 The Thread::Signal module allows you to deliver signals to any thread.
@@ -607,8 +618,8 @@ interpreter with a lot of subroutines pre-loaded.
 =head1 CAVEATS
 
 This module only runs on systems that use a (pseudo) process for each thread.
-To my knowledge, this happens only on Linux systems.  I'd be interested in
-knowing about other OS's on which this implementation also works, so that I
+To my knowledge, this happens only on (older) Linux systems.  I'd be interested
+in knowing about other OS's on which this implementation also works, so that I
 can add these to the documentation.
 
 Because of a bug with signalling in Perl 5.8.0, an entry in the %SIG hash
@@ -627,11 +638,14 @@ Future versions of Perl will probably fix the setting of signals with %SIG.
 
 =head1 SYSTEMS IT DOESN'T WORK ON
 
-=over 2
+Check the output of:
 
-=item Mac OS X
+  perl -V:cppflags
 
-From personal experience  ;-(
+The B<absence> of the string B<-DTHREADS_HAVE_PIDS> is a good indication
+that Thread::Signal will most certainly B<not> work.  However, if that string
+does occur, it is no guarantee that Thread::Signal B<will> work.  The only
+way to find out is to run the test-suite and see whether that works.
 
 =back
 
