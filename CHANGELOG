@@ -1,3 +1,10 @@
+1.03	6 September 2002
+	Added special meaning "-2" to signify all threads that have signal
+	activated _except_ the current thread.
+
+	Added class methods "tids" and "othertids" for returning the thread
+	ID's that have a specific signal activated.
+
 1.02	4 September 2002
 	Found the trick for automatically registering signals.  Completely
 	reworked the inside to allow automatic registration.  Added methods

@@ -3,7 +3,7 @@ package Thread::Signal;
 # Make sure we have version info for this module
 # Make sure we do everything by the book from now on
 
-our $VERSION = '1.02';
+our $VERSION = '1.03';
 use strict;
 
 # Make sure we only load stuff when we actually need it
@@ -212,7 +212,7 @@ sub registered {
 #---------------------------------------------------------------------------
 #  IN: 1 class (ignored)
 #      2 signal to deliver (default: ALRM)
-#      3..N thread id of thread to signal (-1 = all)
+#      3..N thread id of thread to signal (-1 = all, -2 = all but current)
 # OUT: 1 number of threads successfully signalled
 
 sub signal {
@@ -228,9 +228,9 @@ sub signal {
 # If we're to signal all threads that allow this signal
 #  Find out which threads that are and send the signal to them, return result
 
-    if (@_ == 1 and $_[0] == -1) {
+    if (@_ == 1 and $_[0] < 0) {
         kill $signal,
-         map {index( $signal{$_}," $signal " ) != -1 ? $pid{$_} : ()} keys %pid;
+         _tids2pids( $_[0] == -1 ? tids( 0,$signal ) : othertids( 0,$signal ) );
 
 # Else (only specific threads)
 #  Create the not allowed list
@@ -245,6 +245,33 @@ sub signal {
         kill $signal,map {$pid{$_}} @_;
     }
 } #signal
+
+#---------------------------------------------------------------------------
+#  IN: 1 class (ignored)
+#      2 signal
+#      3 flag: check existence of threads
+# OUT: 1..N thread ID's that have this signal enabled
+
+sub tids {
+
+# Create searchable version of signal
+# Create list of tids which have the signal
+# Map this list to ones that have an active pid associated to it, drop inactives
+# Return what we found
+
+    my $signal = " $_[1] ";
+    my @tid = map {index( $signal{$_},$signal ) != -1 ? $_ : ()} keys %pid;
+    @tid = map {kill 0,$pid{$_} ? $_ : delete( $pid{$_} ),()} @tid if $_[2];
+    @tid;
+} #tids
+
+#---------------------------------------------------------------------------
+#  IN: 1 class (ignored)
+#      2 signal
+#      3 flag: check existence of threads
+# OUT: 1..N thread ID's other than current, that have this signal enabled
+
+sub othertids { map {$_ != $tid ? $_ : ()} tids( @_ ) } #othertids
 
 #---------------------------------------------------------------------------
 #  IN: 1 class (ignored)
@@ -292,6 +319,12 @@ sub _allowed {
 } #_allowed
 
 #---------------------------------------------------------------------------
+#  IN: 1..N thread ID's to convert
+# OUT: 1..N process ID's
+
+sub _tids2pids { map {$pid{$_} ? $pid{$_} : ()} @_ } #_tids2pids
+
+#---------------------------------------------------------------------------
 
 =head1 NAME
 
@@ -317,6 +350,9 @@ Thread::Signal - deliver a signal to a thread
 
   $registered = Thread::Signal->registered( 'ALRM' ); # check own thread
   $registered = Thread::Signal->registered( $tid,qw(ALRM USR2) ); # other thread
+
+  @tid = Thread::Signal->tids( 'ALRM' );       # threads with 'ALRM'
+  @tid = Thread::Signal->othertids( 'ALRM' );  # threads except this with 'ALRM'
 
   Thread::Signal->prime( qw(ALRM USR1 USR2) ); # needed in special cases
 
@@ -423,6 +459,19 @@ All signals that are automatically registered are returned.
 Call method L<automatic> to add signal names for automatic registration
 again.
 
+=head2 signal
+
+ Thread::Signal->signal( 'ALRM',-1 );   # signal all registered threads
+
+ Thread::Signal->signal( 'ALRM',@tid ); # deliver signal to specific threads
+
+The "signal" class method acts exactly the same as the kill() function,
+except you B<must> specify thread id's instead of process id's.
+
+The special value B<-1> specifies that all L<register>ed threads should be
+signalled.  The special value B<-2> specifies that all registered threads
+B<except> the current thread should be signalled.
+
 =head2 registered
 
  $registered = Thread::Signal->registered( 'ALRM' ); # one signal, this thread
@@ -443,17 +492,30 @@ A true value will only be returned if B<all> specified signal names are
 registered with the indicated thread.  In all other cases, a false value will
 be returned.
 
-=head2 signal
+=head2 tids
 
- Thread::Signal->signal( 'ALRM',-1 );   # signal all registered threads
+ @tid = Thread::Signal->tids( 'ALRM' );   # just return thread ID's
 
- Thread::Signal->signal( 'ALRM',@tid ); # deliver signal to specific threads
+ @tid = Thread::Signal->tids( 'ALRM',1 ); # also check whether still valid
 
-The "signal" class method acts exactly the same as the kill() function,
-except you B<must> specify thread id's instead of process id's.
+The "tids" class method returns the thread ID's of the threads that have
+registered the specified signal.  The second input parameter can be used to
+indicate that a check should be made whether all of these threads are
+actually still active.  Check L<othertids> for obtaining all threads that
+have a signal registered B<except> the current thread.
 
-The special value B<-1> specifies that all L<register>ed threads should be
-signalled.
+=head2 othertids
+
+ @tid = Thread::Signal->othertids( 'ALRM' );   # just return thread ID's
+
+ @tid = Thread::Signal->othertids( 'ALRM',1 ); # also check whether still valid
+
+The "othertids" class method returns the thread ID's of the threads that have
+registered the specified signal B<without including the ID of the current
+thread>.  The second input parameter can be used to indicate that a check
+should be made whether all of these threads are actually still active.
+Check L<tids> for obtaining all threads that have a signal registered
+B<including> the current thread.
 
 =head2 prime
 

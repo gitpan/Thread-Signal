@@ -5,17 +5,19 @@ BEGIN {				# Magic Perl CORE pragma
     }
 }
 
-use Test::More tests => 9;
+use Test::More tests => 11;
 use strict;
 
 BEGIN {use_ok( 'Thread::Signal',USR1 => 'signal' )}
 can_ok( 'Thread::Signal',qw(
  automatic
  import
+ othertids
  prime
  register
  registered
  signal
+ tids
  unautomatic
  unregister
 ) );
@@ -33,7 +35,15 @@ my $signalled = Thread::Signal->signal( 'USR1',-1 );
 cmp_ok( $signalled,'==',$threads+1,	'check whether all signalled' );
 
 threads->yield until $done == $threads+1;
-is( join(' ',@result),join(' ',0..$threads),'check all threads processed' );
+is( join('',@result),join('',0..$threads),'check all threads processed' );
+
+$done = 0;
+@result = ();
+my $signalled = Thread::Signal->signal( 'USR1',-2 );
+cmp_ok( $signalled,'==',$threads,	'check whether all signalled' );
+
+threads->yield until $done == $threads;
+is( join('',@result),join('',1..$threads),'check all threads processed' );
 
 $running = 0;
 $_->join foreach threads->list;
